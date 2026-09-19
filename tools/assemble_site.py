@@ -2,6 +2,7 @@
 from __future__ import annotations
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -93,6 +94,8 @@ def assemble(source, manifest, output, package_paths):
             raise ValueError("Missing safe frontend asset")
         shutil.copyfile(path, output / name)
     (output / "bootstrap.json").write_text(json.dumps(bootstrap, separators=(",", ":")), encoding="utf-8")
+    (output / "publication.json").write_text(json.dumps({"manifest_id": bootstrap["manifest"]["id"],
+        "built_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds")}), encoding="utf-8")
     (output / ".nojekyll").write_text("", encoding="utf-8")
     actual_size = sum(path.stat().st_size for path in output.rglob("*") if path.is_file())
     if actual_size > 900_000_000:

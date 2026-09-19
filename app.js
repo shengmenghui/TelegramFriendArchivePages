@@ -2,6 +2,7 @@
 import { Reader } from './reader.js';
 
 const reader = new Reader();
+reader.onFatal = message => lockPage(message);
 let unlocked = false, lastActivity = Date.now(), viewGeneration = 0, imageGeneration = 0;
 const blobURLs = new Set();
 let imageURL = null;
@@ -205,10 +206,10 @@ function updateMetaDisplay(meta) {
   elements.telegramCount.textContent = formatNumber(counts.telegram);
   elements.instagramCount.textContent = formatNumber(counts.instagram);
   elements.threadsCount.textContent = formatNumber(counts.threads);
-  elements.indexedAt.textContent = formatIndexedTime(meta.indexed_at_utc);
+  elements.indexedAt.textContent = formatIndexedTime(meta.published_at_utc || meta.indexed_at_utc);
   document.querySelector('#cutoffAt').textContent = formatIndexedTime(meta.data_cutoff_utc);
   elements.indexStatus.textContent = '已解锁';
-  showNotice(Date.now() - Date.parse(meta.indexed_at_utc) > 48 * 3600000 ? '距离上次发布已超过 48 小时；当前显示已同步的快照。' : '');
+  showNotice(Date.now() - Date.parse(meta.indexed_at_utc) > 48 * 3600000 ? '快照已超过 48 小时未更新；当前显示已同步的内容。' : '');
 }
 
 async function loadMeta(initial = false) {
@@ -296,8 +297,8 @@ function appendShare(bubble, record) {
     if (/^https?:\/\//i.test(value)) links.add(value);
   }
   const ordinary = values.filter((value) => !/^https?:\/\//i.test(value));
-  for (const value of [...new Set(ordinary)].slice(0, 6)) card.append(node("p", "", value));
-  for (const href of [...links].slice(0, 6)) {
+  for (const value of new Set(ordinary)) card.append(node("p", "", value));
+  for (const href of links) {
     if (!/^https?:\/\//i.test(href)) continue;
     const link = node("a", "", href);
     link.href = href;
@@ -535,10 +536,19 @@ function createMessage(record) {
 }
 
 function serviceText(action) {
+  const period = action?.period ?? action?.ttl;
+  if (action?._ === 'MessageActionSetMessagesTTL' && typeof period === 'number') {
+    if (period === 0) return '关闭了消息自动删除';
+    const duration = period % 86400 === 0 ? `${period / 86400} 天` : period % 3600 === 0 ? `${period / 3600} 小时` : period % 60 === 0 ? `${period / 60} 分钟` : `${period} 秒`;
+    return `将消息自动删除时间设为 ${duration}`;
+  }
   const label = { MessageActionSetMessagesTTL: '修改了消息自动删除设置', MessageActionPinMessage: '置顶了消息',
     MessageActionHistoryClear: '清理了聊天记录', MessageActionPhoneCall: '通话记录', MessageActionChatEditTitle: '修改了会话名称',
     MessageActionChatEditPhoto: '修改了会话图片', MessageActionChatAddUser: '添加了成员', MessageActionChatDeleteUser: '成员离开会话' }[action?._] || '系统事件';
-  const detail = displayNestedStrings(action).join(' · ');
+  const values = displayNestedStrings(action);
+  if (typeof action?.duration === 'number') values.push(`持续 ${action.duration} 秒`);
+  if (typeof action?.amount === 'number') values.push(`金额记录 ${action.amount}`);
+  const detail = values.join(' · ');
   return detail ? `${label} · ${detail}` : label;
 }
 

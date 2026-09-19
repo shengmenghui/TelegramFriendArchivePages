@@ -105,6 +105,11 @@ async function handle(method, payload) {
     payload.password = '';
     manifest = await jsonObject(bootstrap.manifest.id, false, bootstrap.manifest);
     if (manifest.format !== 'TFA1') throw new Error('归档格式错误');
+    const publication = JSON.parse(decoder.decode(await limitedFetch(new URL('publication.json', root), { cache: 'no-store', credentials: 'omit' })));
+    if (publication.manifest_id !== bootstrap.manifest.id || !Number.isFinite(Date.parse(publication.built_at_utc))) {
+      throw new Error('网站版本正在更新，请稍后重新解锁');
+    }
+    manifest.meta.published_at_utc = publication.built_at_utc;
     catalogue = await jsonObject(manifest.catalogue, false);
     byId = new Map(catalogue.map(row => [row.id, row]));
     return manifest.meta;

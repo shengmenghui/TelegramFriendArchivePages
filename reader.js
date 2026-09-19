@@ -9,7 +9,10 @@ export class Reader {
       this.pending.delete(event.data.id);
       event.data.error ? pending.reject(new Error(event.data.error)) : pending.resolve(event.data.result);
     };
-    this.worker.onerror = () => this.lock();
+    this.worker.onerror = () => {
+      this.lock();
+      this.onFatal?.('读取模块未能正常启动，请检查网络后重新解锁');
+    };
     return this.call('unlock', { password, base: new URL('./', import.meta.url).href });
   }
   call(method, payload = {}) {
