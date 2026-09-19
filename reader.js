@@ -4,6 +4,7 @@ export class Reader {
     this.lock();
     this.worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
     this.worker.onmessage = event => {
+      if (event.data.event === 'progress') { this.onProgress?.(event.data.message); return; }
       const pending = this.pending.get(event.data.id);
       if (!pending) return;
       this.pending.delete(event.data.id);

@@ -3,6 +3,9 @@ import { Reader } from './reader.js';
 
 const reader = new Reader();
 reader.onFatal = message => lockPage(message);
+reader.onProgress = message => {
+  if (!unlocked && document.querySelector('#unlockButton').disabled) document.querySelector('#unlockStatus').textContent = message;
+};
 let unlocked = false, lastActivity = Date.now(), viewGeneration = 0, imageGeneration = 0;
 const blobURLs = new Set();
 let imageURL = null;
