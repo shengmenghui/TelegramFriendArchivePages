@@ -40,6 +40,22 @@ def download(url, path):
             time.sleep(2 ** attempt)
 
 
+def write_frontend(source, output):
+    source, output = Path(source), Path(output)
+    contents = {}
+    for name in WEB_FILES:
+        path = source / name
+        if path.is_symlink() or not path.is_file():
+            raise ValueError("Missing safe frontend asset")
+        contents[name] = path.read_text(encoding="utf-8")
+    version = hashlib.sha256("".join(contents.values()).encode("utf-8")).hexdigest()[:16]
+    for name, content in contents.items():
+        for asset in WEB_FILES:
+            if asset != "index.html":
+                content = content.replace("./" + asset, "./" + asset + "?v=" + version)
+        (output / name).write_text(content, encoding="utf-8")
+
+
 def assemble(source, manifest, output, package_paths):
     source, output = Path(source).resolve(), Path(output).resolve()
     if output == source or source.is_relative_to(output):
@@ -88,11 +104,7 @@ def assemble(source, manifest, output, package_paths):
     bootstrap = manifest["bootstrap"]
     if set(bootstrap) != {"format", "dataset_id", "kdf", "wrap_nonce", "wrapped_key", "manifest"} or bootstrap["manifest"]["id"] not in seen:
         raise ValueError("Invalid public bootstrap")
-    for name in WEB_FILES:
-        path = source / name
-        if path.is_symlink() or not path.is_file():
-            raise ValueError("Missing safe frontend asset")
-        shutil.copyfile(path, output / name)
+    write_frontend(source, output)
     (output / "bootstrap.json").write_text(json.dumps(bootstrap, separators=(",", ":")), encoding="utf-8")
     (output / "publication.json").write_text(json.dumps({"manifest_id": bootstrap["manifest"]["id"],
         "built_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds")}), encoding="utf-8")

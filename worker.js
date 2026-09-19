@@ -43,6 +43,11 @@ async function record(row) {
   if (value?.record_id !== row.id) throw new Error('消息定位校验失败');
   return value;
 }
+async function ensureCatalogue() {
+  if (catalogue) return;
+  catalogue = await jsonObject(manifest.catalogue, false);
+  byId = new Map(catalogue.map(row => [row.id, row]));
+}
 function matches(row, q) {
   return (!q.platform || q.platform === 'all' || row.platform === q.platform) &&
     (!q.sender_role || row.sender === q.sender_role) &&
@@ -61,6 +66,12 @@ async function hydrate(rows) {
 }
 async function messages(q) {
   const limit = bounded(q.limit, 100, 200);
+  if (manifest.recent && !Object.keys(q).some(k => k !== 'limit' && q[k] && q[k] !== 'all')) {
+    const items = (await jsonObject(manifest.recent)).slice(-limit);
+    return { items, oldest_row_id: items[0]?.row_id, newest_row_id: items.at(-1)?.row_id,
+      has_older: manifest.meta.record_counts.message > items.length, has_newer: false };
+  }
+  await ensureCatalogue();
   if (q.around) {
     const target = byId.get(q.around);
     if (!target) throw new Error('此消息未保存在当前归档');
@@ -79,6 +90,7 @@ async function messages(q) {
 }
 function fold(s) { return String(s).toLowerCase().replaceAll('ß', 'ss').replaceAll('ς', 'σ'); }
 async function search(q) {
+  await ensureCatalogue();
   if (!searchIndex) searchIndex = await jsonObject(manifest.search, false);
   const term = fold(String(q.q || '').trim().slice(0, 200));
   if (!term) return { items: [], has_more: false, next_offset: 0 };
@@ -111,25 +123,28 @@ async function handle(method, payload) {
       throw new Error('网站版本正在更新，请稍后重新解锁');
     }
     manifest.meta.published_at_utc = publication.built_at_utc;
-    self.postMessage({ event: 'progress', message: '正在载入聊天索引…内容验证完成后会自动显示。' });
-    catalogue = await jsonObject(manifest.catalogue, false);
-    byId = new Map(catalogue.map(row => [row.id, row]));
+    self.postMessage({ event: 'progress', message: '正在读取最近聊天…' });
     return manifest.meta;
   }
   if (!key || !manifest) throw new Error('请先输入密码解锁');
   if (method === 'meta') return manifest.meta;
   if (method === 'messages') return messages(payload);
   if (method === 'search') return search(payload);
-  if (method === 'message') return record(byId.get(payload.id));
+  if (method === 'message') { await ensureCatalogue(); return record(byId.get(payload.id)); }
   if (method === 'history') {
+    await ensureCatalogue();
     const value = await record(byId.get(payload.id));
     return value.history_object ? (await jsonObject(value.history_object))[payload.id] : {};
   }
   if (method === 'media') {
-    const image = manifest.images[payload.id];
+    if (!/^[a-f0-9]{64}$/.test(payload.id)) throw new Error('图片引用无效');
+    const bucketId = manifest.image_buckets?.[payload.id.slice(0, 2)];
+    const bucket = bucketId ? await jsonObject(bucketId) : null;
+    const image = (bucket?.images || manifest.images || {})[payload.id];
     if (!image) throw new Error('图片未保存在归档中');
     const original = payload.original === true;
-    return { data: await object(original ? image.original : image.thumbnail), mime: original ? image.mime_type : 'image/webp' };
+    const objectId = original ? image.original : image.thumbnail;
+    return { data: await object(objectId, bucket?.objects?.[objectId]), mime: original ? image.mime_type : 'image/webp' };
   }
   if (method === 'check') {
     const latest = await boot();
