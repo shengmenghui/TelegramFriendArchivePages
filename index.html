@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <title>聊天归档</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main id="lockScreen" class="lock-screen">
+    <form id="unlockForm" class="unlock-card">
+      <div class="lock-mark" aria-hidden="true">聊</div>
+      <p class="unlock-eyebrow">PRIVATE CHAT ARCHIVE</p>
+      <h1>把聊天留在这里</h1>
+      <p class="unlock-description">输入共享密码，查看保存的聊天和图片。</p>
+      <label for="passwordInput">共享密码</label>
+      <input id="passwordInput" type="password" autocomplete="off" required spellcheck="false" autocapitalize="off" placeholder="输入密码" aria-describedby="unlockStatus">
+      <button id="unlockButton" class="primary-button full-width" type="submit">解锁归档</button>
+      <p id="unlockStatus" role="status" aria-live="polite"></p>
+      <p class="unlock-footnote">内容在当前浏览器中解密。离开页面或闲置 15 分钟后自动锁定。</p>
+    </form>
+  </main>
+  <div id="readerScreen" class="hidden" inert>
+  <header class="topbar">
+    <div class="brand-block">
+      <div class="brand-mark" aria-hidden="true">聊</div>
+      <div>
+        <h1>聊天归档</h1>
+        <p id="archiveSummary"></p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div class="segment" aria-label="显示时区">
+        <button class="segment-button active" type="button" data-timezone="china">中国时间</button>
+        <button class="segment-button" type="button" data-timezone="france">法国时间</button>
+      </div>
+      <button id="manualButton" class="quiet-button" type="button">手工补录</button>
+      <button id="reindexButton" class="quiet-button" type="button">检查更新</button>
+      <button id="lockButton" class="quiet-button" type="button">锁定</button>
+      <button id="filterToggle" class="quiet-button mobile-only" type="button" aria-expanded="false">筛选</button>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside id="sidebar" class="sidebar">
+      <form id="searchForm" class="search-box" role="search">
+        <label for="searchInput">搜索所有聊天</label>
+        <div class="search-row">
+          <input id="searchInput" name="q" type="search" maxlength="200" placeholder="关键词、昵称、链接或旧版本" autocomplete="off">
+          <button type="submit">搜索</button>
+        </div>
+        <p class="search-hint">支持中文短词、已删除内容与编辑历史</p>
+      </form>
+
+      <section class="filter-section" aria-labelledby="filterHeading">
+        <div class="section-heading">
+          <h2 id="filterHeading">筛选</h2>
+          <button id="resetFilters" class="text-button" type="button">重置</button>
+        </div>
+        <div class="filter-grid">
+          <label>平台
+            <select id="platformFilter">
+              <option value="all">全部平台</option>
+              <option value="telegram">Telegram</option>
+              <option value="instagram">Instagram</option>
+              <option value="threads">Threads</option>
+            </select>
+          </label>
+          <label>发送者
+            <select id="senderFilter">
+              <option value="all">双方</option>
+              <option value="me">我</option>
+              <option value="her">她</option>
+              <option value="unknown">未知</option>
+            </select>
+          </label>
+          <label>会话
+            <select id="conversationFilter">
+              <option value="all">全部会话</option>
+            </select>
+          </label>
+          <label>内容分类
+            <select id="topicFilter">
+              <option value="all">全部分类</option>
+            </select>
+          </label>
+          <label>删除状态
+            <select id="deletedFilter">
+              <option value="all">全部（含已删除）</option>
+              <option value="true">仅已删除</option>
+              <option value="false">仅未删除</option>
+            </select>
+          </label>
+          <label>媒体类型
+            <select id="mediaFilter">
+              <option value="all">全部类型</option>
+            </select>
+          </label>
+          <label>起始日期（中国）
+            <input id="dateFromFilter" type="date">
+          </label>
+          <label>结束日期（中国）
+            <input id="dateToFilter" type="date">
+          </label>
+        </div>
+        <button id="applyFilters" class="primary-button full-width" type="button">应用筛选</button>
+      </section>
+
+      <section class="archive-state" aria-labelledby="stateHeading">
+        <h2 id="stateHeading">归档状态</h2>
+        <dl>
+          <div><dt>索引</dt><dd id="indexStatus">读取中</dd></div>
+          <div><dt>Telegram</dt><dd id="telegramCount">—</dd></div>
+          <div><dt>Instagram</dt><dd id="instagramCount">—</dd></div>
+          <div><dt>Threads</dt><dd id="threadsCount">—</dd></div>
+          <div><dt>数据截止</dt><dd id="cutoffAt">—</dd></div>
+          <div><dt>发布时间</dt><dd id="indexedAt">—</dd></div>
+        </dl>
+        <p class="privacy-note">网页只保存密文，密码和解密内容仅在当前页面使用。图片按需加载。</p>
+      </section>
+    </aside>
+
+    <main class="main-panel">
+      <div class="view-heading">
+        <div>
+          <p id="viewEyebrow" class="eyebrow">全部会话</p>
+          <h2 id="viewTitle">最近聊天</h2>
+          <p id="viewDescription">按时间查看统一归档中的消息</p>
+        </div>
+        <div class="view-actions">
+          <button id="clearSearchButton" class="quiet-button hidden" type="button">返回最近聊天</button>
+        </div>
+      </div>
+
+      <div id="notice" class="notice hidden" role="status"></div>
+      <button id="loadOlderButton" class="load-button hidden" type="button">加载更早的消息</button>
+      <section id="content" class="timeline" aria-live="polite"></section>
+      <button id="loadMoreSearchButton" class="load-button hidden" type="button">加载更多搜索结果</button>
+      <button id="previousSearchButton" class="load-button hidden" type="button">上一页搜索结果</button>
+      <button id="loadNewerButton" class="load-button hidden" type="button">加载较新的消息</button>
+      <div id="emptyState" class="empty-state hidden">
+        <div class="empty-icon" aria-hidden="true">⌕</div>
+        <h3>没有找到记录</h3>
+        <p>可以换一个关键词，或者放宽日期和筛选条件。</p>
+      </div>
+      <button id="latestButton" class="latest-button" type="button">回到最新</button>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+  </div>
+  <dialog id="imageDialog" class="image-dialog">
+    <div class="image-toolbar"><span id="imageStatus">正在读取原图…</span><a id="downloadImage" class="quiet-button hidden" download="image">保存原图</a><button id="closeImage" class="quiet-button" type="button">关闭</button></div>
+    <div class="image-viewport"><img id="originalImage" alt="聊天原图"></div>
+  </dialog>
+  <script src="./app.js" type="module"></script>
+</body>
+</html>
